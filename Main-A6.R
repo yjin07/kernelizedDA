@@ -1,6 +1,5 @@
 Sys.time()
-# source("../Functions/helper-all.R")
-source("../Functions/helper-all-revised.R")
+source("Functions/kernel.R")
 library(glmnet)
 library(TULIP)
 uu <- as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))
@@ -9,7 +8,9 @@ set.seed(uu + 1000)
 combs <- expand.grid(p = rep(c(50, 100, 150), each = 100), rho = c(0.8, 1.0, 1.2, 1.4))
 final <- list()
 
-# --- Simulation setup ---
+# -------------------------
+# Simulation setup 
+# -------------------------
 M  <-  6
 p  <-  combs$p[uu]
 c  <-  2
@@ -21,19 +22,21 @@ classes <- rep(c, M)
 rho  <-  combs$rho[uu]
 cMat <- covAR(p, 0.7)
 Omega.true <- solve(cMat)
-# beta <- matrix(rnorm(M * 10, sd = 1), nrow = 10)
 beta <- matrix(0, nrow = 10, ncol = M)
 inds <- sample(1 : (10 * M), 5 * M, replace = FALSE)
 beta[inds] <- 2
-
 y_all <- as.matrix(do.call(expand.grid, lapply(classes, function(x) 0:(x-1))))
 kernel <- 1
 
-# --- Store Result ---
+# -----------------
+# Store Result
+# -----------------
 result <- matrix(0, nrow = 7, ncol = M + 5)
 meandiff <- matrix(0, nrow = 2, ncol = 2)
 
-# --- Random Generation of Y ---
+# -------------------------------
+# Random Generation of Y 
+# -------------------------------
 Y <- matrix(0, ncol = M, nrow = n)
 probs <- runif(prod(classes))
 probs <- probs / sum(probs)
@@ -42,31 +45,33 @@ for (i in 1 : n) {
     Y[i,] <- y_all[draw[i],]
 }
 
-# --- Random Generation of the MEAN ---
+# -------------------------------
+# Random Generation of the Mean 
+# -------------------------------
 nn <- dim(y_all)[1]
 nonMat <- matrix(0, nrow = nn, ncol =  10)
 for (i in 1 : nn) {
-    nonMat[i,] <- fcn(y_all[i, ], beta, all.linear = TRUE) # FIXME:
+    nonMat[i,] <- fcn(y_all[i, ], beta, all.linear = TRUE)
 }
 nonMat <- nonMat / rho
 mean.ind <- sample(1:p, 10, replace = F)
 meanMat <- matrix(0, nrow = n, ncol = p)
 meanMat[, mean.ind] <- nonMat[draw, ]
 
-
-# --- True MEAN ---
+# ---------------------
+# True MEAN
+# ---------------------
 truemean <- matrix(0, nrow = nn, ncol = p)
 truemean[, mean.ind] <- nonMat
 
-# --- Random Generation of R ---
 R <- matrix(0, nrow = n, ncol = p)
 for (i in 1 : n) {
     R[i, ] <- rmvnorm(1, mean = meanMat[i, ], sigma = cMat)
 }
 
-# ----------------------------------------
-# --- Division of training and testing ---
-# ----------------------------------------
+# -------------------------------------------
+# Split of training, validation and testing
+# -------------------------------------------
 index <- sample(1:n, ntrain + nval, replace = F)
 Xtest <- R[-index, ]
 Ytest <- Y[-index, ]
@@ -78,7 +83,9 @@ Yval <- Y[-index, ]
 X <- X[index, ]
 Y <- Y[index, ]
 
-# --- Check number of occured categories ----
+# --------------------------------------
+# Check number of occured categories
+# --------------------------------------
 tmp <- Y
 cc <- rep(0, dim(tmp)[1])
 for(i in 1:length(cc)) {
@@ -90,7 +97,6 @@ cat("----------------\ncount: ", count,"\n----------------\n")
 samplemean <- matrix(0, nrow = dim(y_all)[1], ncol = p)
 for (kk in 1:prod(classes)) {
     if (is.null(dim(X[which(cc==kk), ]))) {
-        # cat(kk, ", ")
         samplemean[kk, ] <- X[which(cc==kk), ]
     } else {
         samplemean[kk, ] <- colMeans(X[which(cc == kk), ])
@@ -98,7 +104,9 @@ for (kk in 1:prod(classes)) {
 }
 na.rows <- na.action(na.omit(samplemean))
 
-# --- Extract important variables ---
+# ---------------------------------
+# Extract important variables 
+# ---------------------------------
 theta <- solve(cMat, t(truemean))
 enorms <- apply(theta, 1, function(x) sqrt(sum(x ^ 2)))
 imps <- sort(union(mean.ind, which(enorms > 1e-9)))
@@ -110,10 +118,9 @@ if (2 * length(imps) > p) {
     combined <- union(imps, noise)
 }
 
-# ----------
-#   Oracle
-# ----------
-prm0 <- Sys.time()
+# ----------------------
+# Method 1: Oracle
+# ----------------------
 Pmat <- matrix(0, nrow = ntest, ncol = prod(classes))
 Omega <- solve(cMat)
 for (jj in 1:prod(classes)) {
@@ -123,23 +130,15 @@ for (jj in 1:prod(classes)) {
 pred.classes <- apply(Pmat, 1, which.max)
 Y.pred <- matrix(0, ncol = M, nrow = ntest)
 Y.pred <- y_all[pred.classes, ] 
-colSums(Y.pred == Ytest)/ntest
-sum(rowSums(Y.pred == Ytest) == M) / ntest
-cat("\n\nTime Cost: ", Sys.time() - prm0, "\n")
-
 result[1, 1 : M] <- colSums(Y.pred == Ytest)/ntest
 result[1, M + 1] <- sum(rowSums(Y.pred == Ytest) == M) / ntest
 
-# ------------------------
-#       Centralization
-# ------------------------
-col_means <- colMeans(X)
 
 # -----------------------------------
-#           Nonconvex
+# Method 2: KLDA-M (Nonconvex)
 # -----------------------------------
-res <- cv.kernel.nonconvex(Y, X, Yval, Xval, y_all, classes, eta = 0.5)
-res$tune
+eta.vec <- 2 ^ seq(2, -4, length = 5)
+res <- cv.kernel.nonconvex(Y, X, Yval, Xval, classes, eta.vec, delta = 1e-6)
 final[['nonconvex']] <- res
 est.mean <- matrix(0, nrow = dim(y_all)[1], ncol = p)
 for (i in 1:prod(classes)) {
@@ -150,13 +149,9 @@ tt <- 1
 if (is.null(na.rows)) {
     meandiff[tt, 1] <- sum((samplemean - truemean) ^ 2) / nn
     meandiff[tt, 2] <- sum((est.mean - truemean) ^ 2) / nn
-    cat(sum((samplemean - truemean) ^ 2) / nn, "\n")
-    cat(sum((est.mean - truemean) ^ 2) / nn, "\n")
 } else {
     meandiff[tt, 1] <- sum((samplemean[-na.rows, ] - truemean[-na.rows, ]) ^ 2) / dim(samplemean[-na.rows, ])[1]
     meandiff[tt, 2] <- sum((est.mean[-na.rows, ] - truemean[-na.rows, ]) ^ 2) / dim(samplemean[-na.rows, ])[1]
-    cat(sum((samplemean[-na.rows, ] - truemean[-na.rows, ]) ^ 2) / dim(samplemean[-na.rows, ])[1], "\n")
-    cat(sum((est.mean[-na.rows, ] - truemean[-na.rows, ]) ^ 2) / dim(samplemean[-na.rows, ])[1], "\n")
 }
 # --------------------------------------------------------------------------
 freq <- res$freq
@@ -168,8 +163,6 @@ for (jj in 1:prod(classes)) {
 pred.classes <- apply(Pmat, 1, which.max)
 Y.pred <- matrix(0, ncol = M, nrow = ntest)
 Y.pred <- y_all[pred.classes, ]
-colSums(Y.pred == Ytest)/ntest
-sum(rowSums(Y.pred == Ytest) == M) / ntest
 result[2, 1 : M] <- colSums(Y.pred == Ytest)/ntest
 result[2, M + 1] <- sum(rowSums(Y.pred == Ytest) == M) / ntest
 enorms <- apply(res$alpha, 2, function(x) sqrt(sum(x ^ 2)))
@@ -181,32 +174,24 @@ result[2, M + 5] <- length(intersect((1:p)[-mean.ind], (1:p)[-imp.mod])) / (p - 
 final[['pred.nonconvex']] <- Y.pred
 
 # -----------------------------------
-#           Convex
+# Method 3: KLDA-D (Convex)
 # -----------------------------------
 eta.vec <- 2 ^ seq(2, -4, length = 5)
-res <- cv.kernel.convex(Y, X, Yval, Xval, y_all, classes, eta.vec, delta = 1e-6)
-res$tune
+res <- cv.kernel.convex(Y, X, Yval, Xval, classes, eta.vec, delta = 1e-6)
 final[['convex']] <- res
 est.mean <- matrix(0, nrow = dim(y_all)[1], ncol = p)
 est.cov <- solve((res$Omega + t(res$Omega)) / 2)
 for (i in 1:prod(classes)) {
     est.mean[i, ] <-  Kx.vec(y_all[i,], res$xtilde, classes, kernel) %*% res$Beta %*% est.cov / sqrt(dim(res$xtilde)[1]) + colMeans(X) - colMeans(res$Q0 %*% res$K %*% res$Beta %*% est.cov) * sqrt(dim(res$xtilde)[1])
 }
-# TODO:
-est.mean0 <- t(t(est.mean) + col_means)
-cat(sum(col_means ^ 2), "\n")
 tt <- 2
 # --------------------------------------------------------------------------
 if (is.null(na.rows)) {
     meandiff[tt, 1] <- sum((samplemean - truemean) ^ 2) / nn
     meandiff[tt, 2] <- sum((est.mean - truemean) ^ 2) / nn
-    cat(sum((samplemean - truemean) ^ 2) / nn, "\n")
-    cat(sum((est.mean - truemean) ^ 2) / nn, "\n")
 } else {
     meandiff[tt, 1] <- sum((samplemean[-na.rows, ] - truemean[-na.rows, ]) ^ 2) / dim(samplemean[-na.rows, ])[1]
     meandiff[tt, 2] <- sum((est.mean[-na.rows, ] - truemean[-na.rows, ]) ^ 2) / dim(samplemean[-na.rows, ])[1]
-    cat(sum((samplemean[-na.rows, ] - truemean[-na.rows, ]) ^ 2) / dim(samplemean[-na.rows, ])[1], "\n")
-    cat(sum((est.mean[-na.rows, ] - truemean[-na.rows, ]) ^ 2) / dim(samplemean[-na.rows, ])[1], "\n")
 }
 freq <- res$freq
 Pmat <- matrix(0, nrow = ntest, ncol = prod(classes))
@@ -217,8 +202,6 @@ for (jj in 1:prod(classes)) {
 pred.classes <- apply(Pmat, 1, which.max)
 Y.pred <- matrix(0, ncol = M, nrow = ntest)
 Y.pred <- y_all[pred.classes, ]
-colSums(Y.pred == Ytest)/ntest
-sum(rowSums(Y.pred == Ytest) == M) / ntest
 result[3, 1 : M] <- colSums(Y.pred == Ytest)/ntest
 result[3, M + 1] <- sum(rowSums(Y.pred == Ytest) == M) / ntest
 enorms <- apply(res$Beta, 2, function(x) sqrt(sum(x ^ 2)))
@@ -230,16 +213,15 @@ result[3, M + 5] <- length(intersect((1:p)[-mean.ind], (1:p)[-imp.mod])) / (p - 
 final[['pred.convex']] <- Y.pred
 
 
-# ---------------------------
-#     Sep-Logistic (Naive)
-# ---------------------------
+# --------------------------------
+# Method 4: Sep-Logistic
+# --------------------------------
 xtrain <- X
 ytrain <- Y
 xval <- Xval
 yval <- Yval
 lambda_vals <- 10 ^ seq(log10(1e3), log10(1e-3), length = 35)
 Y.pred0 <- matrix(0, nrow = ntest, ncol = M)
-imps # TODO:
 imp.Logistic <- NULL
 for (k in 1:M) {
     accuracy <- rep(0, length(lambda_vals))
@@ -260,8 +242,6 @@ for (k in 1:M) {
     }            
     Y.pred0[, k] <- as.numeric(predict(fit_R, Xtest, type = 'class'))
 }
-colSums(Y.pred0 == Ytest)/ntest
-sum(rowSums(Y.pred0 == Ytest) == M) / ntest
 result[4, 1 : M] <- colSums(Y.pred0 == Ytest)/ntest
 result[4, M + 1] <- sum(rowSums(Y.pred0 == Ytest) == M) / ntest
 result[4, M + 2] <- length(intersect(imps, imp.Logistic)) / length(imps)
@@ -269,7 +249,7 @@ result[4, M + 3] <- length(intersect((1:p)[-imps], (1:p)[-imp.Logistic])) / (p -
 final[['pred.sep.logistic']] <- Y.pred0
 
 # ----------------------
-#       Sep-MSDA
+# Method 5: Sep-MSDA
 # ----------------------
 xtest <- Xval
 ytest <- Yval
@@ -277,7 +257,6 @@ xtrain <- X
 ytrain <- Y
 Y.pred.msda <- matrix(0, nrow = ntest, ncol = M)
 imp.MSDA <- NULL
-imps # TODO:
 for (jj in 1: M) {
     obj <- dsda(x = xtrain, y = ytrain[,jj] + 1)
     res <- predict(obj, xtest) - 1
@@ -291,11 +270,6 @@ for (jj in 1: M) {
     cat("Response: ", jj, ":", which(obj$beta[-1] != 0), "\n")
     imp.MSDA <- union(imp.MSDA, which(obj$beta[-1] != 0))
 }
-imp.MSDA
-colSums(Y.pred.msda == Ytest)/ntest
-sum(rowSums(Y.pred.msda == Ytest) == M) / ntest
-length(intersect(imps, imp.MSDA)) / length(imps)
-length(intersect((1:p)[-imps], (1:p)[-imp.MSDA])) / (p - length(imps))
 result[5, 1 : M] <- colSums(Y.pred.msda == Ytest)/ntest
 result[5, M + 1] <- sum(rowSums(Y.pred.msda == Ytest) == M) / ntest
 result[5, M + 2] <- length(intersect(imps, imp.MSDA)) / length(imps)
@@ -305,7 +279,7 @@ final[['pred.sep.msda']] <- Y.pred.msda
 
 
 # ---------------------------------
-#     Combined Category (Logistic)
+# Method 6: Combined Logistic
 # ---------------------------------
 tmp <- Y
 cc <- rep(0, dim(tmp)[1])
@@ -334,26 +308,18 @@ count <- length(levels(factor(cc)))
 cat("\nNum of appeared categories: ", count,"\n")
 Ytestf <- cc
 
+# ------------------------------------------------------------
 # Drop categories whose number of appearance is less than 2
+# ------------------------------------------------------------
 counts <- table(Yf)
 selected <- names(counts[counts >= 2])
 Yf_s <- Yf[Yf %in% selected]
 cat("\nThe responses left after we drop those with observations less than 2: \n")
 X_s <- X[Yf %in% selected, ]
-# cat(dim(X_s)[1] == length(Yf_s))
-
-table(Yf_s)
-table(Yvalf)
-table(Ytestf)
-
 X_train <- X_s
 Y_train <- Yf_s
 X_val <- Xval
 Y_val <- Yvalf
-dim(X_train)
-length(Y_train)
-dim(X_val)
-length(Y_val)
 
 mod <- glmnet(x = X_train, y = Y_train, family = "multinomial",
                 alpha = 1)
@@ -363,30 +329,20 @@ for (i in 1:(dim(pred)[2])) {
     accuracy[i] <- sum(as.numeric(pred[,i]) == Y_val) / length(Y_val)
 }
 
-# accuracy
-
 cat("======================================\n")
 cat(which.max(accuracy), "out of", length(accuracy), "\n")
 cat("======================================\n")
 best.ind <- which.max(accuracy)
 pred <- as.numeric(predict(mod, newx = Xtest, type = "class")[,best.ind])
-
 imp.comb.Logistic <- NULL
 for (jj in 1:length(mod$beta)) {
     imp.comb.Logistic <- union(imp.comb.Logistic, which(mod$beta[[jj]][,best.ind] != 0))
 }
-
 accuracy <- sum(pred == Ytestf) / ntest
-accuracy
 Ypred <- matrix(0, nrow = dim(Ytest)[1], ncol = dim(Ytest)[2])
 for (ii in 1 : (dim(Ypred)[1])) {
     Ypred[ii, ] <- y_all[pred[ii], ]
 }
-
-sum(rowSums(Ypred == Ytest) == M) / ntest
-colSums(Ypred == Ytest)/ntest
-length(intersect(imps, imp.comb.Logistic)) / length(imps)
-length(intersect((1:p)[-imps], (1:p)[-imp.comb.Logistic])) / (p - length(imps))
 result[6, 1 : M] <- colSums(Ypred == Ytest)/ntest
 result[6, M + 1] <- sum(rowSums(Ypred == Ytest) == M) / ntest
 result[6, M + 2] <- length(intersect(imps, imp.comb.Logistic)) / length(imps)
@@ -394,7 +350,7 @@ result[6, M + 3] <- length(intersect((1:p)[-imps], (1:p)[-imp.comb.Logistic])) /
 final[['pred.comb.logistic']] <- Ypred
 
 # ---------------------------------
-#     Combined-MSDA
+# Method 7: Combined-MSDA
 # ---------------------------------
 xval <- X_val
 yval <- Y_val
@@ -402,11 +358,7 @@ xtrain <- X_train
 ytrain <- Y_train
 xtest <- Xtest
 ytest <- Ytestf
-# Y.pred <- matrix(0, ntest)
 imp.MSDA <- NULL
-table(ytrain)
-table(yval)
-table(ytest)
 
 nntrain <- length(ytrain)
 nnval <- length(yval)
@@ -416,9 +368,6 @@ y_comb <- as.numeric(factor(y_comb0, levels = unique(y_comb0)))
 ytrain <- y_comb[1:nntrain]
 yval <- y_comb[(nntrain + 1):(nntrain + nnval)]
 ytest <- y_comb[-(1:(nntrain + nnval))]
-table(ytrain)
-table(yval)
-table(ytest)
 
 obj <- msda(x = xtrain, y = ytrain, nlambda = 35)
 res <- predict(obj, xval)
@@ -427,7 +376,6 @@ acc <- rep(0, nlambda)
 for (i in 1 : nlambda) {
     acc[i] <- sum(res[, i] == yval) / dim(res)[1]
 }
-acc
 imp.comb.MSDA <- NULL
 obj <- msda(x = xtrain, y = ytrain, lambda = obj$lambda[which.max(acc)])
 imp.comb.MSDA <- sort(union(imp.comb.MSDA, as.numeric(which(obj$theta$'1'[,1] != 0, arr.ind = T))))
@@ -441,14 +389,11 @@ Ypred <- matrix(0, nrow = dim(Ytest)[1], ncol = dim(Ytest)[2])
 for (ii in 1 : (dim(Ypred)[1])) {
     Ypred[ii, ] <- y_all[Y.original[ii], ]
 }
-
 result[7, 1 : M] <- colSums(Ypred == Ytest)/ntest
 result[7, M + 1] <- sum(rowSums(Ypred == Ytest) == M) / ntest
 result[7, M + 2] <- length(intersect(imps, imp.comb.MSDA)) / length(imps)
 result[7, M + 3] <- length(intersect((1:p)[-imps], (1:p)[-imp.comb.MSDA])) / (p - length(imps))
 final[['pred.comb.msda']] <- Ypred
-
-meandiff
 final[['meandiff']] <- meandiff
 
 result
