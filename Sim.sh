@@ -9,6 +9,5 @@
 #SBATCH --mem=2gb
 #SBATCH -t 96:00:00
 
-mkdir Results-XX
 ml R/4.2
 R CMD BATCH --vanilla Main-XX.R  Results-XX/Rep_${SLURM_ARRAY_TASK_ID}.Rout

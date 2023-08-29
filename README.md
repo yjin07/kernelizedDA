@@ -25,17 +25,19 @@ mkdir Results-A4
 ml R/4.2
 R CMD BATCH --vanilla Main-A4.R Results-A4/Rep_${SLURM_ARRAY_TASK_ID}.Rout
 ```
+3. Create a directory to store the results.
 
-3. Execute the modified `Sim.sh` file.
+```
+mkdir Results-A4
+```
+
+4. Execute the modified `Sim.sh` file.
 
 This process will launch 1200 jobs, corresponding to 100 replicates for each combination of:
 + $p$ values: 50, 100, 150
 + $\nu$ values: 0.8, 1.0, 1.2, 1.4
 
-For every replicate, the script will:
-
-+ Create a `Results-A4` directory to store the results.
-+ Execute `Main-A4.R` to generate data based on the specified data-generating model, fit various models, and assess their performance. All the results are saved in RDS files under the `Results-A4` directory.
+For every replicate, the script will execute `Main-A4.R` to generate data based on the specified data-generating model, fit various models, and assess their performance. All the results are saved in RDS files under the `Results-A4` directory.
 
 All necessary functions can be found in the Functions directory.
 
