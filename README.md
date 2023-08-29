@@ -21,7 +21,6 @@ For instance, to run the simulation for Model A-4:
 #SBATCH --mem=2gb
 #SBATCH -t 96:00:00
 
-mkdir Results-A4
 ml R/4.2
 R CMD BATCH --vanilla Main-A4.R Results-A4/Rep_${SLURM_ARRAY_TASK_ID}.Rout
 ```
