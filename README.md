@@ -1,5 +1,7 @@
-# Kernelized Discriminant Analysis
-This repository contains the simulation code for the paper titled "Kernelized Discriminant Analysis for Multivariate Categorical Response Regression."
+# Kernelized Discriminant Analysis for Multivariate Categorical Response Regression
+
+This repository provides the simulation code for the paper titled *Kernelized Discriminant Analysis for Multivariate Categorical Response Regression*.
+
 
 ## Running the Simulation
 To execute the simulation:
