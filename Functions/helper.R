@@ -9,8 +9,8 @@ library(msda)
 library(sparseLDA)
 library(Rcpp)
 
-source("Marginal.R")
-sourceCpp("alpha.cpp")
+source("Functions/Marginal.R")
+sourceCpp("Functions/alpha.cpp")
 
 # -----------------------------------
 # Two covariance matrix structures
