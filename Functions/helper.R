@@ -43,28 +43,28 @@ fcn <- function(yy, beta, all.linear = TRUE) {
 # -----------------------------------
 # Discrete Kernel Functions
 # -----------------------------------
-ker_1 <- function(J_1, J_2, classes) {
-    if (sum(J_1 == J_2) == length(classes)) {
-        res <- sum((J_1 == J_2) * sqrt(classes)) + 1e-2
+ker_1 <- function(J1, J2, classes) {
+    if (sum(J1 == J2) == length(classes)) {
+        res <- sum((J1 == J2) * sqrt(classes)) + 1e-2
     } else {
-        res <- sum((J_1 == J_2) * sqrt(classes))
+        res <- sum((J1 == J2) * sqrt(classes))
     }
     return(res)
 }
 
-ker_2 <- function(J_1, J_2, classes) {
+ker_2 <- function(J1, J2, classes) {
     # --------------------
     # Eskin Measure
     # --------------------
     res <- 0
-    for (j in 1:length(J_1)) {
+    for (j in 1:length(J1)) {
         res <- res + classes[j] ^ 2 / (classes[j] ^ 2 + 2) +
-            (J_1[j] == J_2[j]) * 2 / (classes[j] ^ 2 + 2)
+            (J1[j] == J2[j]) * 2 / (classes[j] ^ 2 + 2)
     }
     return(res)
 }
 
-ker_3 <- function(J_1, J_2, classes, xtrain) {
+ker_3 <- function(J1, J2, classes, xtrain) {
     # --------------------
     # IOF
     # --------------------
@@ -76,10 +76,10 @@ ker_3 <- function(J_1, J_2, classes, xtrain) {
         }
     }
     res <- 0
-    for (j in 1:length(J_1)) {
-        res <- res + 1 / (1 + log(freq[[j]][J_1[j] + 1]) * log(freq[[j]][J_2[j] + 1])) +(J_1[j] == J_2[j]) * (log(freq[[j]][J_1[j] + 1]) * log(freq[[j]][J_2[j] + 1])) / (1 + log(freq[[j]][J_1[j] + 1]) * log(freq[[j]][J_2[j] + 1])) 
+    for (j in 1:length(J1)) {
+        res <- res + 1 / (1 + log(freq[[j]][J1[j] + 1]) * log(freq[[j]][J2[j] + 1])) +(J1[j] == J2[j]) * (log(freq[[j]][J1[j] + 1]) * log(freq[[j]][J2[j] + 1])) / (1 + log(freq[[j]][J1[j] + 1]) * log(freq[[j]][J2[j] + 1])) 
     }
-    if (sum(J_1 == J_2) == length(classes)) {
+    if (sum(J1 == J2) == length(classes)) {
         res <- res + 1e-2
     }
     return(res)
