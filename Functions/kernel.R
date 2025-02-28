@@ -9,13 +9,13 @@ source("Functions/helper.R")
 # yval: nval x p matrix of predictors for validation
 # classes: a vector of length M, with each component being the number of categories for each response
 # ----------------------------------------------
-
-cv.kernel.nonconvex <- function(x, y, xval, yval, 
-                                classes, eta.vec, max.rank = 4, 
-                                ngamma = 35, delta = 0.001, 
-                                kernel = 1, max.iter = 100, 
-                                diag.cov = FALSE) 
+cv.kernel.nonconvex <- function(x, y, xval, yval, x_all, classes, max.rank = 4, ngamma = 35, 
+                eta = 0, delta = 0.001, kernel = "hamming", W = NULL,
+                max.iter = 100, diag.cov = FALSE) 
 {
+    cat("+++++++++++++++++++++++++++\n")
+    cat("++ Kernel used: ", kernel, "\n")
+    cat("+++++++++++++++++++++++++++\n")
     # -----------------------
     # Preliminaries
     # -----------------------
@@ -35,7 +35,7 @@ cv.kernel.nonconvex <- function(x, y, xval, yval,
     # -----------------------
     # Set gamma.vec 
     # -----------------------
-    getElement <- getQ(x, classes, kernel = kernel)
+    getElement <- getQ(x, classes, kernel = kernel, W = W)
     K <- getElement$K
     Q0 <- getElement$Q
     xtilde <- getElement$Xtilde
@@ -57,6 +57,7 @@ cv.kernel.nonconvex <- function(x, y, xval, yval,
         counts[index] <- counts[index] + 1
         SampleMean[index, ] <- SampleMean[index, ] + y[ii, ]
     }
+
     for (jj in 1 : dim(x_all)[1]) {
         SampleMean[jj, ] <- SampleMean[jj, ] / counts[jj]
     }
@@ -65,7 +66,7 @@ cv.kernel.nonconvex <- function(x, y, xval, yval,
     SampleCov <- matrix(0, ncol = p, nrow = p)
     ind <- rep(0, dim(Tmp)[1])
     for (j in 1:dim(Tmp)[1]) {
-     ind[j] <- findIndex(Tmp[j, 1:M], classes)
+        ind[j] <- findIndex(Tmp[j, 1:M], classes)
     }
     for (i in 1 : n) {
         index <- which(ind == findIndex(x[i,], classes))
@@ -162,7 +163,7 @@ cv.kernel.nonconvex <- function(x, y, xval, yval,
             est.cov <- (est.cov + t(est.cov)) / 2
             est.mean <- matrix(0, nrow = dim(x_all)[1], ncol = p)
             for (ii in 1 : total) {
-                est.mean[ii, ] <-  Kx.vec(x_all[ii,], xtilde, classes, kernel) %*% alpha / sqrt(ntilde) + col_means - colMeans(Q0 %*% K %*% alpha) * sqrt(ntilde) 
+                est.mean[ii, ] <-  Kx.vec(x_all[ii,], xtilde, classes, kernel, W = W) %*% alpha / sqrt(ntilde) + col_means - colMeans(Q0 %*% K %*% alpha) * sqrt(ntilde) 
             }
 
             # -----------------------------
@@ -283,12 +284,13 @@ cv.kernel.nonconvex <- function(x, y, xval, yval,
 # classes: a vector of length M, with each component being the number of categories for each response
 # ----------------------------------------------
 
-cv.kernel.convex <- function(x, y, xval, yval,
-                            classes, eta.vec, max.rank = 4, 
-                            ngamma = 35, delta = 0.001, 
-                            kernel = 1, max.iter = 100, 
-                            diag.cov = FALSE) 
+cv.kernel.convex <- function(x, y, xval, yval, x_all, classes, eta.vec, max.rank = 4, ngamma = 35, 
+                eta = 0, delta = 0.001, kernel = "hamming", W = NULL,
+                max.iter = 100, diag.cov = FALSE) 
 {
+    cat("+++++++++++++++++++++++++++\n")
+    cat("++ Kernel used: ", kernel, "\n")
+    cat("+++++++++++++++++++++++++++\n")
     # -----------------------
     # Preliminaries
     # -----------------------
@@ -308,12 +310,12 @@ cv.kernel.convex <- function(x, y, xval, yval,
     # ------------------
     # Set gamma.vec 
     # ------------------
-    getElement <- getQ(x, classes, kernel = kernel)
+    getElement <- getQ(x, classes, kernel = kernel, W = W)
     K <- getElement$K
     Q0 <- getElement$Q
     xtilde <- getElement$Xtilde
     ntilde <- dim(xtilde)[1]
-    Q <- (diag(n) - matrix(1 / n, nrow = n, ncol = n)) %*% Q0 # FIXME:
+    Q <- (diag(n) - matrix(1 / n, nrow = n, ncol = n)) %*% Q0
     mat <- K %*% crossprod(Q, y)
     vec.val <- sqrt(colSums(mat ^ 2))
     gamma.max <- max(vec.val) * 2 * sqrt(ntilde) * 2
@@ -338,7 +340,7 @@ cv.kernel.convex <- function(x, y, xval, yval,
     SampleCov <- matrix(0, ncol = p, nrow = p)
     ind <- rep(0, dim(Tmp)[1])
     for (j in 1:dim(Tmp)[1]) {
-     ind[j] <- findIndex(Tmp[j, 1:M], classes)
+        ind[j] <- findIndex(Tmp[j, 1:M], classes)
     }
     for (i in 1 : n) {
         index <- which(ind == findIndex(x[i,], classes))
@@ -436,7 +438,7 @@ cv.kernel.convex <- function(x, y, xval, yval,
             est.cov <- (est.cov + t(est.cov)) / 2
             est.mean <- matrix(0, nrow = dim(x_all)[1], ncol = p)
             for (ii in 1 : total) {
-                est.mean[ii, ] <-  Kx.vec(x_all[ii,], xtilde, classes, kernel)%*% Beta %*% est.cov / sqrt(ntilde) + col_means - colMeans(Q0 %*% K %*% Beta %*% est.cov) * sqrt(ntilde)
+                est.mean[ii, ] <-  Kx.vec(x_all[ii,], xtilde, classes, kernel, W)%*% Beta %*% est.cov / sqrt(ntilde) + col_means - colMeans(Q0 %*% K %*% Beta %*% est.cov) * sqrt(ntilde)
             }
 
             # -----------------------------

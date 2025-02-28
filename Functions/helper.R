@@ -44,6 +44,10 @@ fcn <- function(yy, beta, all.linear = TRUE) {
 # Discrete Kernel Functions
 # -----------------------------------
 ker_1 <- function(J1, J2, classes) {
+    # --------------------------
+    # Hamming Distance Kernel
+    # without weights
+    # --------------------------
     if (sum(J1 == J2) == length(classes)) {
         res <- sum((J1 == J2) * sqrt(classes)) + 1e-2
     } else {
@@ -52,7 +56,33 @@ ker_1 <- function(J1, J2, classes) {
     return(res)
 }
 
-ker_2 <- function(J1, J2, classes) {
+ker_1s <- function(J1, J2, W) {
+    # --------------------------
+    # Hamming Distance Kernel
+    # with weights
+    # --------------------------
+    res <- 0
+    for (j in 1:length(J1)) {
+        weight <- W[J1[j] + 1, j]
+        res <- res + (J1[j] == J2[j]) * weight
+    }
+
+    if (sum(J1 == J2) == length(J1)) {
+        res <- res + 1e-2
+    }
+
+    return(res)
+}
+
+ker_2 <- function(J1, J2) {
+    # --------------------
+    # Overlap Measure
+    # --------------------
+    res <- sum(J1 == J2)
+    return(res)
+}
+
+ker_3 <- function(J1, J2, classes) {
     # --------------------
     # Eskin Measure
     # --------------------
@@ -64,7 +94,7 @@ ker_2 <- function(J1, J2, classes) {
     return(res)
 }
 
-ker_3 <- function(J1, J2, classes, xtrain) {
+ker_4 <- function(J1, J2, classes, xtrain) {
     # --------------------
     # IOF
     # --------------------
@@ -85,50 +115,176 @@ ker_3 <- function(J1, J2, classes, xtrain) {
     return(res)
 }
 
-Kx.mat <- function(xtrain, classes, kernel) {
+ker_5 <- function(J1, J2, classes, xtrain) {
+    # --------------------
+    # Lin Measure
+    # --------------------
+    rfreq <- list()
+    for (k in 1:length(classes)) {
+        rfreq[[k]] <- rep(0, classes[k])
+        for (j in 1:classes[k]) {
+            rfreq[[k]][j] <- sum(xtrain[,k] == j - 1) / dim(xtrain)[1]
+        }
+    }
+    
+    num <- 0
+    den <- 0
+    for (j in 1:length(J1)) {
+        num <- num + 2 * log(rfreq[[j]][J1[j] + 1]) * (J1[j] == J2[j]) + 2 * log(rfreq[[j]][J1[j] + 1] + rfreq[[j]][J2[j] + 1]) * (J1[j] != J2[j])
+        den <- den + log(rfreq[[j]][J1[j] + 1]) + log(rfreq[[j]][J2[j] + 1])
+    }
+    res <- num / den
+    return(res)
+}
+
+
+ker_6 <- function(J1, J2, classes, W = NULL) {
+    # -----------------------------------
+    # Weighted Paired-agreement kernel
+    # -----------------------------------
+    if (length(J1) != length(J2)) {
+        stop("J1 and J2 must have the same length.")
+    }
+
+    if (is.null(W)) {
+        W <- matrix(1, nrow = max(classes), ncol = length(classes))
+    }
+
+    if (nrow(W) != max(classes) || ncol(W) != length(J1)) {
+        stop("The dimensions of W must match the length of J1 and J2.")
+    }
+
+    res <- 0
+
+    for (m in 1:length(J1)) {
+        for (m_prime in 1:length(J1)) {
+            if (J1[m] == J2[m] && J1[m_prime] == J2[m_prime]) {
+                w1 <- W[J1[m] + 1, m]
+                w2 <- W[J1[m_prime] + 1, m_prime]
+                res <- res + sqrt(w1 * w2)
+            }
+        }
+    }
+
+    if (sum(J1 == J2) == length(J1)) {
+        res <- res + 1e-2
+    }
+
+    return(res)
+}
+
+
+
+InverseFreqWeight <- function(xtrain, classes) {
+    n <- dim(xtrain)[1]
+
+    nCol <- length(classes)
+    nRow <- max(classes)
+
+    freq <- matrix(0, nrow = nRow, ncol = nCol)
+
+    for (j in 1 : nCol) {
+        for (i in 1 : (classes[j])) {
+            freq[i, j] <- sum(xtrain[, j] == i - 1) / n
+        }
+    }
+
+    return(1 / freq)
+}
+
+
+
+Kx.mat <- function(xtrain, classes, kernel="hamming", W = NULL) {
     # ------------------------------------------------
     # Calculate K matrix, with a factor of 1/n.
     # ------------------------------------------------
     ntrain <- dim(xtrain)[1]
     K <- matrix(0, nrow = ntrain, ncol = ntrain)
-    if (kernel == 1) {
-        for (j in 1 : ntrain) {
-            for (l in 1 : ntrain) {
-                K[j, l] <- ker_1(xtrain[j, ], xtrain[l, ], classes)
+    if (kernel == "hamming") {
+        if (is.null(W)) {
+            for (j in 1 : ntrain) {
+                for (l in 1 : ntrain) {
+                    K[j, l] <- ker_1(xtrain[j, ], xtrain[l, ], classes)
+                }
+            }
+        } else {
+            for (j in 1 : ntrain) {
+                for (l in 1 : ntrain) {
+                    K[j, l] <- ker_1s(xtrain[j, ], xtrain[l, ], W)
+                }
             }
         }
-    } else if (kernel == 2) {
+        
+    } else if (kernel == "overlap") {
         for (j in 1 : ntrain) {
             for (l in 1 : ntrain) {
                 K[j, l] <- ker_2(xtrain[j, ], xtrain[l, ])
             }
         }
-    } else if (kernel == 3) {
+    } else if (kernel == "eskin") {
         for (j in 1 : ntrain) {
             for (l in 1 : ntrain) {
                 K[j, l] <- ker_3(xtrain[j, ], xtrain[l, ], classes)
             }
         }
-    } 
+    } else if (kernel == "iof") {
+        for (j in 1 : ntrain) {
+            for (l in 1 : ntrain) {
+                K[j, l] <- ker_4(xtrain[j, ], xtrain[l, ], classes, xtrain)
+            }
+        }
+    } else if (kernel == "lin") {
+        for (j in 1 : ntrain) {
+            for (l in 1 : ntrain) {
+                K[j, l] <- ker_5(xtrain[j, ], xtrain[l, ], classes, xtrain)
+            }
+        }
+    } else if (kernel == "pair") {
+        for (j in 1 : ntrain) {
+            for (l in 1 : ntrain) {
+                K[j, l] <- ker_6(xtrain[j, ], xtrain[l, ], classes, W)
+            }
+        }
+    }
     return(K / ntrain)
 }
 
-Kx.vec <- function(x, xtrain, classes, kernel) {
+
+Kx.vec <- function(x, xtrain, classes, kernel="hamming", W = NULL) {
     # ------------------------------------------------------------------
     # For a particular J, calculate vector (K(J_1,J),...,K(J_n,J)).
     # ------------------------------------------------------------------
     res <- rep(0, dim(xtrain)[1])
-    if (kernel == 1) {
-        for (i in 1 : dim(xtrain)[1]) {
-            res[i] <- ker_1(x, xtrain[i, ], classes)
+    if (kernel == "hamming") {
+        if (is.null(W)) {
+            for (i in 1 : dim(xtrain)[1]) {
+                res[i] <- ker_1(x, xtrain[i, ], classes)
+            }
+        } else {
+            for (i in 1 : dim(xtrain)[1]) {
+                res[i] <- ker_1s(x, xtrain[i, ], W)
+            }
         }
-    } else if (kernel == 2) {
+        
+    } else if (kernel == "overlap") {
         for (i in 1 : dim(xtrain)[1]) {
             res[i] <- ker_2(x, xtrain[i, ])
         }
-    } else if (kernel == 3) {
+    } else if (kernel == "eskin") {
         for (i in 1 : dim(xtrain)[1]) {
             res[i] <- ker_3(x, xtrain[i, ], classes)
+        }
+    } else if (kernel == "iof") {
+        for (i in 1 : dim(xtrain)[1]) {
+            res[i] <- ker_4(x, xtrain[i, ], classes, xtrain)
+        }
+    } else if (kernel == "lin") {
+        for (i in 1 : dim(xtrain)[1]) {
+            res[i] <- ker_5(x, xtrain[i, ], classes, xtrain)
+        }
+    } else if (kernel == "pair") {
+        for (i in 1 : dim(xtrain)[1]) {
+            res[i] <- ker_6(x, xtrain[i, ], classes, W)
         }
     }
     return(res)
@@ -150,7 +306,7 @@ findIndex <- function(x, classes) {
     return(res + 1)
 }
 
-getQ <- function(x, classes, kernel = 1) {
+getQ <- function(x, classes, kernel = "hamming", W = NULL) {
     n <- dim(x)[1]
     ntmp <- prod(classes)
     Q <- matrix(0, nrow = n, ncol = ntmp)
@@ -163,11 +319,12 @@ getQ <- function(x, classes, kernel = 1) {
     }
     
     Xtmp <- na.omit(Xtmp)
-    K <- Kx.mat(Xtmp, classes, kernel)
+    K <- Kx.mat(Xtmp, classes, kernel, W)
     
     if (any(colSums(Q) == 0)) {
         Q <- Q[,-which(colSums(Q) == 0)]
     }
+    
     return(list("Q" = Q, "K" = K, "Xtilde" = Xtmp))
 }
 
@@ -200,7 +357,7 @@ update.Omega.nonconvex <- function(y, alpha, K, Q, eta, diag.cov = FALSE) {
 # ------------------------------------------
 # Helper functions for Convex Estimator
 # ------------------------------------------
-eval.obj.convex <- function(y, Beta, omega, K, Q, gamma, eta) { # FIXME: 
+eval.obj.convex <- function(y, Beta, omega, K, Q, gamma, eta) {
     # ------------------------------------------------
     # Evaluation of objective function
     # ------------------------------------------------
@@ -253,6 +410,7 @@ prox <- function(v, lambda) {
 update.Beta <- function(y, K, Q, omega, gamma, eta, stepsize = 2, BetaPre = NULL) {
     p <- dim(y)[2]
     ntilde <- dim(K)[1]
+
     if (!is.null(BetaPre)) {
         Beta <- BetaPre
     } else {
@@ -310,6 +468,7 @@ conv.proj <- function(X){
     dv[dv > 1e2] <- 1e2
     return (eig$vectors %*% diag(dv) %*% t(eig$vectors))
 }
+
 
 update.Omega.convex <- function(y, Beta, omega, K, Q, gamma, eta, vareps = 1e-2) {
     n <- dim(y)[1]
