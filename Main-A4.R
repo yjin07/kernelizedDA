@@ -30,7 +30,7 @@ kernel <- 1
 # -----------------
 # Store Result
 # -----------------
-result <- matrix(0, nrow = 7, ncol = M + 5)
+result <- matrix(0, nrow = 9, ncol = M + 5)
 meandiff <- matrix(0, nrow = 2, ncol = 2)
 
 # -------------------------------
@@ -393,6 +393,51 @@ result[7, M + 2] <- length(intersect(imps, imp.comb.MSDA)) / length(imps)
 result[7, M + 3] <- length(intersect((1:p)[-imps], (1:p)[-imp.comb.MSDA])) / (p - length(imps))
 final[['pred.comb.msda']] <- Ypred
 final[['meandiff']] <- meandiff
+
+# ----------------------------------------
+# Method 8: Sep-MDA with all predictors
+# ----------------------------------------
+log_info("Start fitting S-MDA regression...")
+xtest <- Xval
+ytest <- Yval
+xtrain <- X
+ytrain <- Y
+Y.pred.mda <- matrix(0, nrow = ntest, ncol = M)
+imp.MDA <- NULL
+imps
+
+for (jj in 1:M) {
+    response <- ytrain[, jj] + 1
+    obj <- mda(response ~ xtrain, subclasses = 27)
+    Y.pred.mda[, jj] <- as.numeric(predict(obj, Xtest)) - 1
+}
+
+colSums(Y.pred.mda == Ytest)/ntest
+sum(rowSums(Y.pred.mda == Ytest) == M) / ntest
+result[8, 1 : M] <- colSums(Y.pred.mda == Ytest)/ntest
+result[8, M + 1] <- sum(rowSums(Y.pred.mda == Ytest) == M) / ntest
+
+
+# ----------------------------------------------
+# Method 9: Sep-MDA with important predictors
+# ----------------------------------------------
+Y.pred.mda <- matrix(0, nrow = ntest, ncol = M)
+imp.MDA <- NULL
+imps
+
+for (jj in 1:M) {
+    response <- ytrain[, jj] + 1
+    obj <- mda(response ~ xtrain[, imps], subclasses = 27)
+    Y.pred.mda[, jj] <- as.numeric(predict(obj, Xtest[, imps])) - 1
+}
+
+colSums(Y.pred.mda == Ytest)/ntest
+sum(rowSums(Y.pred.mda == Ytest) == M) / ntest
+result[9, 1 : M] <- colSums(Y.pred.mda == Ytest)/ntest
+result[9, M + 1] <- sum(rowSums(Y.pred.mda == Ytest) == M) / ntest
+
+
+
 
 result
 final[['acc']] <- result
