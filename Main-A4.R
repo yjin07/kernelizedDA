@@ -25,7 +25,7 @@ beta <- matrix(0, nrow = 10, ncol = M)
 inds <- sample(1 : (10 * M), 5 * M, replace = FALSE)
 beta[inds] <- 2
 y_all <- as.matrix(expand.grid(0:2, 0:2, 0:2, 0:2))
-kernel <- 1
+kernel <- "hamming"
 
 # -----------------
 # Store Result
@@ -82,6 +82,10 @@ Yval <- Y[-index, ]
 X <- X[index, ]
 Y <- Y[index, ]
 
+weightMat <- NULL
+# weightMat <- InverseFreqWeight(Y, classes)
+print(weightMat)
+
 # --------------------------------------
 # Check number of occured categories
 # --------------------------------------
@@ -137,11 +141,12 @@ result[1, M + 1] <- sum(rowSums(Y.pred == Ytest) == M) / ntest
 # Method 2: KLDA-M (Nonconvex)
 # -----------------------------------
 eta.vec <- 2 ^ seq(2, -4, length = 5)
-res <- cv.kernel.nonconvex(Y, X, Yval, Xval, classes, eta.vec, delta = 1e-6)
+res <- cv.kernel.nonconvex(Y, X, Yval, Xval, classes, eta.vec, 
+                            delta = 1e-6, kernel = kernel, W = weightMat)
 final[['nonconvex']] <- res
 est.mean <- matrix(0, nrow = dim(y_all)[1], ncol = p)
 for (i in 1:prod(classes)) {
-    est.mean[i, ] <-  Kx.vec(y_all[i,], res$xtilde, classes, kernel)%*% res$alpha / sqrt(dim(res$xtilde)[1]) + colMeans(X) - colMeans(res$Q0 %*% res$K %*% res$alpha) * sqrt(dim(res$xtilde)[1])
+    est.mean[i, ] <-  Kx.vec(y_all[i,], res$xtilde, classes, kernel, W = weightMat)%*% res$alpha / sqrt(dim(res$xtilde)[1]) + colMeans(X) - colMeans(res$Q0 %*% res$K %*% res$alpha) * sqrt(dim(res$xtilde)[1])
 }
 # --------------------------------------------------------------------------
 tt <- 1
@@ -176,12 +181,13 @@ final[['pred.nonconvex']] <- Y.pred
 # Method 3: KLDA-D (Convex)
 # -----------------------------------
 eta.vec <- 2 ^ seq(2, -4, length = 5)
-res <- cv.kernel.convex(Y, X, Yval, Xval, classes, eta.vec, delta = 1e-6)
+res <- cv.kernel.convex(Y, X, Yval, Xval, classes, eta.vec, 
+                        delta = 1e-6, kernel = kernel, W = weightMat)
 final[['convex']] <- res
 est.mean <- matrix(0, nrow = dim(y_all)[1], ncol = p)
 est.cov <- solve((res$Omega + t(res$Omega)) / 2)
 for (i in 1:prod(classes)) {
-    est.mean[i, ] <-  Kx.vec(y_all[i,], res$xtilde, classes, kernel) %*% res$Beta %*% est.cov / sqrt(dim(res$xtilde)[1]) + colMeans(X) - colMeans(res$Q0 %*% res$K %*% res$Beta %*% est.cov) * sqrt(dim(res$xtilde)[1])
+    est.mean[i, ] <-  Kx.vec(y_all[i,], res$xtilde, classes, kernel, W = weightMat) %*% res$Beta %*% est.cov / sqrt(dim(res$xtilde)[1]) + colMeans(X) - colMeans(res$Q0 %*% res$K %*% res$Beta %*% est.cov) * sqrt(dim(res$xtilde)[1])
 }
 tt <- 2
 # --------------------------------------------------------------------------
