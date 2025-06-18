@@ -1,6 +1,7 @@
 Sys.time()
 source("Functions/kernel.R")
 library(glmnet)
+library(logger)
 uu <- as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))
 
 set.seed(uu + 1000)
@@ -26,6 +27,7 @@ inds <- sample(1 : (10 * M), 5 * M, replace = FALSE)
 beta[inds] <- 2
 y_all <- as.matrix(expand.grid(0:2, 0:2, 0:2, 0:2))
 kernel <- "hamming"
+# kernel <- "pair"
 
 # -----------------
 # Store Result
@@ -140,9 +142,9 @@ result[1, M + 1] <- sum(rowSums(Y.pred == Ytest) == M) / ntest
 # -----------------------------------
 # Method 2: KLDA-M (Nonconvex)
 # -----------------------------------
-eta.vec <- 2 ^ seq(2, -4, length = 5)
-res <- cv.kernel.nonconvex(Y, X, Yval, Xval, classes, eta.vec, 
-                            delta = 1e-6, kernel = kernel, W = weightMat)
+log_info("Start fitting nonconvex kernel regression...")
+res <- cv.kernel.nonconvex(Y, X, Yval, Xval, y_all, classes, 
+                            eta = 0.5, kernel = kernel, W = weightMat)
 final[['nonconvex']] <- res
 est.mean <- matrix(0, nrow = dim(y_all)[1], ncol = p)
 for (i in 1:prod(classes)) {
@@ -180,8 +182,9 @@ final[['pred.nonconvex']] <- Y.pred
 # -----------------------------------
 # Method 3: KLDA-D (Convex)
 # -----------------------------------
+log_info("Start fitting convex kernel regression...")
 eta.vec <- 2 ^ seq(2, -4, length = 5)
-res <- cv.kernel.convex(Y, X, Yval, Xval, classes, eta.vec, 
+res <- cv.kernel.convex(Y, X, Yval, Xval, y_all, classes, eta.vec, 
                         delta = 1e-6, kernel = kernel, W = weightMat)
 final[['convex']] <- res
 est.mean <- matrix(0, nrow = dim(y_all)[1], ncol = p)
@@ -221,6 +224,7 @@ final[['pred.convex']] <- Y.pred
 # --------------------------------
 # Method 4: Sep-Logistic
 # --------------------------------
+log_info("Start fitting S-Logistic regression...")
 xtrain <- X
 ytrain <- Y
 xval <- Xval
@@ -256,6 +260,7 @@ final[['pred.sep.logistic']] <- Y.pred0
 # ----------------------
 # Method 5: Sep-MSDA
 # ----------------------
+log_info("Start fitting S-MSDA regression...")
 xtest <- Xval
 ytest <- Yval
 xtrain <- X
@@ -286,6 +291,7 @@ final[['pred.sep.msda']] <- Y.pred.msda
 # ---------------------------------
 # Method 6: Combined Logistic
 # ---------------------------------
+log_info("Start fitting A-Logistic regression...")
 tmp <- Y
 cc <- rep(0, dim(tmp)[1])
 for(i in 1:length(cc)) {
@@ -357,6 +363,7 @@ final[['pred.comb.logistic']] <- Ypred
 # ---------------------------------
 # Method 7: Combined-MSDA
 # ---------------------------------
+log_info("Start fitting A-MSDA regression...")
 xval <- X_val
 yval <- Y_val
 xtrain <- X_train
