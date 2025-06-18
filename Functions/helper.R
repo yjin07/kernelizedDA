@@ -470,7 +470,7 @@ conv.proj <- function(X){
 }
 
 
-update.Omega.convex <- function(y, Beta, omega, K, Q, gamma, eta, vareps = 1e-2) {
+update_Omega  <- function(y, Beta, omega, K, Q, gamma, eta, vareps = 1e-2) {
     n <- dim(y)[1]
     p <- dim(y)[2]
     ntilde <- dim(K)[1]
