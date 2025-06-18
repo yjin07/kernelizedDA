@@ -42,3 +42,14 @@ For every replicate, the script will execute `Main-A4.R` to generate data based 
 
 All necessary functions can be found in the Functions directory.
 
+
+## Notes on Computing Environment
+
+The provided workflow is configured for SLURM-based high-performance computing (HPC) environments. The `Sim.sh` script is a SLURM batch job script that manages parallel execution using job arrays.
+
+If you wish to run the simulation on a different computing platform (e.g., a non-SLURM cluster, local multicore machine, or cloud environment), **you will need to modify**:
+
+- The shell script `Sim.sh`: Replace SLURM-specific directives (e.g., `#SBATCH` flags) with those suitable for your job scheduling system (e.g., PBS, LSF, or a custom script for GNU parallel or background jobs).
+- The R script `Main-XX.R`: Ensure that any job-specific environment variables (e.g., `SLURM_ARRAY_TASK_ID`) are replaced or emulated appropriately (e.g., using `commandArgs()` or manually setting replicate IDs).
+
+Additionally, make sure all dependencies such as R packages and source files from the `Functions` directory are properly loaded in your environment.
