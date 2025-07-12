@@ -1,6 +1,6 @@
-# Kernelized Discriminant Analysis for Joint Modeling of Multivariate Categorical Response
+# Kernelized Discriminant Analysis for Joint Modeling of Multivariate Categorical Responses
 
-This repository provides the simulation code for the paper titled *Kernelized Discriminant Analysis for Joint Modeling of Multivariate Categorical Response*.
+This repository provides the simulation code for the paper titled *Kernelized Discriminant Analysis for Joint Modeling of Multivariate Categorical Responses*.
 
 
 ## Running the Simulation
